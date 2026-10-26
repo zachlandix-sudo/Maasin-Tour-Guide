@@ -1,21 +1,24 @@
-
-import Groq from "groq-sdk";
+import OpenAI from "openai";
 import mongoose from "mongoose";
 import Itinerary from "../models/Itinerary.js";
 import TouristSpot from "../models/TouristSpot.js";
 
 const allowedPaces = ["relaxed", "moderate", "packed"];
 
-function getGroqClient() {
-  const apiKey = process.env.GROQ_API_KEY?.trim();
+function getOpenRouterClient() {
+  const apiKey = process.env.OPENROUTER_API_KEY?.trim();
 
   if (!apiKey) {
-    throw new Error("GROQ_API_KEY is missing or empty.");
+    throw new Error("OPENROUTER_API_KEY is missing or empty.");
   }
 
-  return new Groq({
+  return new OpenAI({
     apiKey,
+    baseURL: "https://openrouter.ai/api/v1",
     timeout: 60000,
+    defaultHeaders: {
+      "X-OpenRouter-Title": "MAASIN TOUR GUIDE",
+    },
   });
 }
 
@@ -47,13 +50,13 @@ function validatePreferences(body = {}) {
 
   const interests = Array.isArray(body.interests)
     ? body.interests
-        .filter(
-          (interest) =>
-            typeof interest === "string" &&
-            interest.trim().length > 0,
-        )
-        .slice(0, 10)
-        .map((interest) => interest.trim())
+      .filter(
+        (interest) =>
+          typeof interest === "string" &&
+          interest.trim().length > 0,
+      )
+      .slice(0, 10)
+      .map((interest) => interest.trim())
     : [];
 
   return {
@@ -128,7 +131,7 @@ async function generateWithRetry(
   config,
   maxRetries = 1,
 ) {
-  const ai = getGroqClient();
+  const ai = getOpenRouterClient();
 
   for (let attempt = 0; ; attempt++) {
     try {
@@ -169,14 +172,13 @@ async function generateWithRetry(
 
 export async function generateItinerary(req, res) {
   try {
-    if (!process.env.GROQ_API_KEY?.trim()) {
+    if (!process.env.OPENROUTER_API_KEY?.trim()) {
       return res.status(503).json({
-        message: "Groq API key is not configured on the server.",
+        message: "OpenRouter API key is not configured on the server.",
       });
     }
 
     const preferences = validatePreferences(req.body);
-
     const touristSpots = await TouristSpot.find({
       status: "published",
     })
@@ -193,7 +195,7 @@ export async function generateItinerary(req, res) {
     }
 
     const model =
-      process.env.GROQ_MODEL || "openai/gpt-oss-20b";
+      process.env.OPENROUTER_MODEL || "openrouter/free";
 
     const prompt = `
 You are a tourism itinerary assistant for Maasin City,
@@ -352,8 +354,8 @@ Rules:
       summary: String(generated.summary || "").slice(0, 2000),
       travelTips: Array.isArray(generated.travelTips)
         ? generated.travelTips
-            .filter((tip) => typeof tip === "string")
-            .slice(0, 20)
+          .filter((tip) => typeof tip === "string")
+          .slice(0, 20)
         : [],
       status: "generated",
     });
@@ -383,7 +385,7 @@ Rules:
       return res.status(400).json({ message });
     }
 
-    if (message.includes("GROQ_API_KEY is missing")) {
+    if (message.includes("OPENROUTER_API_KEY is missing")) {
       return res.status(503).json({
         message: "Groq API key is not configured on the server.",
       });

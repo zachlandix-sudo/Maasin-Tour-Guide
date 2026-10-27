@@ -387,13 +387,13 @@ Rules:
 
     if (message.includes("OPENROUTER_API_KEY is missing")) {
       return res.status(503).json({
-        message: "Groq API key is not configured on the server.",
+        message: "OpenRouter API key is not configured on the server.",
       });
     }
 
     if (error instanceof SyntaxError) {
       return res.status(502).json({
-        message: "Groq returned invalid JSON. Please try again.",
+        message: "OpenRouter returned invalid JSON. Please try again.",
       });
     }
 

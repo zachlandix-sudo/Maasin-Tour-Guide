@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import DestinationDetails from "./components/Destination.jsx";
 import AboutUs from "./components/AboutUs";
 import SmartRoutePlanner from "./components/SmartRoutePlanner.jsx";
+import ChatWidget from "./ChatWidget.jsx";
 import "./App.css";
 
 const API_URL =
@@ -744,10 +745,13 @@ function HomePage() {
 
 function App() {
   return (
-    <Routes>
+    <>
+      <Routes>
       <Route path="/spots/:id" element={<DestinationDetails />} />
       <Route path="*" element={<HomePage />} />
-    </Routes>
+      </Routes>
+      <ChatWidget />
+    </>
   );
 }
 

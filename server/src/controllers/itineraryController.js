@@ -160,7 +160,7 @@ async function generateWithRetry(
       const delay = 1000;
 
       console.warn(
-        `Groq returned ${status}. Retrying once in ${delay}ms...`,
+        `OpenRouter returned ${status}. Retrying once in ${delay}ms...`,
       );
 
       await new Promise((resolve) =>
@@ -180,7 +180,7 @@ async function generateWithFallback(models, contents, config) {
       const text = response.choices?.[0]?.message?.content;
 
       if (typeof text !== "string" || !text.trim()) {
-        throw new Error("Groq returned empty itinerary content.");
+        throw new Error("OpenRouter returned empty itinerary content.");
       }
 
       parseJsonResponse(text);
@@ -278,16 +278,16 @@ Rules:
       response.choices?.[0]?.message?.content;
 
     console.log(
-      "Groq response choices:",
+      "OpenRouter response choices:",
       response.choices?.length,
     );
     console.log(
-      "Groq response finish reason:",
+      "OpenRouter response finish reason:",
       response.choices?.[0]?.finish_reason,
     );
-    console.log("Groq content type:", typeof generatedText);
+    console.log("OpenRouter content type:", typeof generatedText);
     console.log(
-      "Groq content length:",
+      "OpenRouter content length:",
       generatedText?.length ?? 0,
     );
 
@@ -295,7 +295,7 @@ Rules:
       typeof generatedText !== "string" ||
       !generatedText.trim()
     ) {
-      throw new Error("Groq returned empty itinerary content.");
+      throw new Error("OpenRouter returned empty itinerary content.");
     }
 
     const generated = parseJsonResponse(generatedText);
@@ -307,7 +307,7 @@ Rules:
       !Array.isArray(generated.stops)
     ) {
       throw new Error(
-        "Groq returned an invalid itinerary structure.",
+        "OpenRouter returned an invalid itinerary structure.",
       );
     }
 
@@ -320,7 +320,7 @@ Rules:
 
       if (!spot) {
         throw new Error(
-          "Groq returned a destination that is not in the database.",
+          "OpenRouter returned a destination that is not in the database.",
         );
       }
 

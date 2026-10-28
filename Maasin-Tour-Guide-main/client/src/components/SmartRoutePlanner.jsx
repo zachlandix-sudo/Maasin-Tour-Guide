@@ -703,43 +703,42 @@ export default function SmartRoutePlanner({ spots = [] }) {
             </button>
           </div>
 
-          <div className="route-planner-destinations">
-            {mappedSpots.map((spot) => (
-              <label className="route-planner-destination" key={spot._id}>
-                <input
-                  type="checkbox"
-                  checked={validSelectedIds.includes(spot._id)}
-                  onChange={() => toggleSpot(spot._id)}
-                />
-                <span>
-                  <strong>{spot.name}</strong>
-                  <small>{spot.category || "Tourist destination"}</small>
-                </span>
-              </label>
-            ))}
-          </div>
+          {mappedSpots.length === 0 ? (
+            <div className="route-planner-empty">
+              <span className="route-planner-empty-icon" aria-hidden="true">
+                📍
+              </span>
+              <h4>Your destinations are on the way</h4>
+              <p>
+                Explore available tourist spots while we prepare the map
+                locations for route planning.
+              </p>
+              <small>Destination map pins are being prepared.</small>
+            </div>
+          ) : (
+            <div className="route-planner-destinations">
+              {mappedSpots.map((spot) => (
+                <label className="route-planner-destination" key={spot._id}>
+                  <input
+                    type="checkbox"
+                    checked={validSelectedIds.includes(spot._id)}
+                    onChange={() => toggleSpot(spot._id)}
+                  />
+                  <span>
+                    <strong>{spot.name}</strong>
+                    <small>{spot.category || "Tourist destination"}</small>
+                  </span>
+                </label>
+              ))}
+            </div>
+          )}
+
           <p className="route-planner-selection-count">
             {validSelectedIds.length} destination
             {validSelectedIds.length === 1 ? "" : "s"} selected
           </p>
 
-          <button
-            type="button"
-            className="route-planner-optimize-button"
-            onClick={optimizeRoute}
-            disabled={
-              routeLoading ||
-              startLocationLoading ||
-              !startCoordinates ||
-              selectedSpots.length < 1
-            }
-          >
-            {routeLoading
-              ? "Calculating route..."
-              : startLocationLoading
-                ? "Finding starting location..."
-                : "Calculate route"}
-          </button>
+        
 
           {routeError && (
             <p className="route-planner-error" role="alert">

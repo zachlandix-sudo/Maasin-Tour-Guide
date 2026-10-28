@@ -738,7 +738,23 @@ export default function SmartRoutePlanner({ spots = [] }) {
             {validSelectedIds.length === 1 ? "" : "s"} selected
           </p>
 
-        
+          <button
+            type="button"
+            className="route-planner-optimize-button"
+            onClick={optimizeRoute}
+            disabled={
+              routeLoading ||
+              startLocationLoading ||
+              !startCoordinates ||
+              selectedSpots.length < 1
+            }
+          >
+            {routeLoading
+              ? "Calculating route..."
+              : startLocationLoading
+                ? "Finding starting location..."
+                : "Calculate route"}
+          </button>
 
           {routeError && (
             <p className="route-planner-error" role="alert">

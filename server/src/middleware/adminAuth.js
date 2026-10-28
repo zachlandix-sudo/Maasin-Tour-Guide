@@ -52,6 +52,7 @@ export function adminLogin(req, res) {
   const record = failedAttempts.get(req.ip);
 
   if (record && record.resetAt > now && record.count >= MAX_FAILED_ATTEMPTS) {
+    console.warn(`[ADMIN LOGIN] Blocked (too many tries) from ${req.ip}`);
     return res.status(429).json({
       message: "Too many failed tries. Please wait 15 minutes.",
     });
@@ -63,10 +64,14 @@ export function adminLogin(req, res) {
 
   if (!userOk || !passOk) {
     const current = record && record.resetAt > now ? record : null;
+    const newCount = (current ? current.count : 0) + 1;
     failedAttempts.set(req.ip, {
-      count: (current ? current.count : 0) + 1,
+      count: newCount,
       resetAt: current ? current.resetAt : now + LOCK_WINDOW_MS,
     });
+    console.warn(
+      `[ADMIN LOGIN] Failed attempt ${newCount} from ${req.ip} at ${new Date().toISOString()}`,
+    );
     return res.status(401).json({ message: "Wrong username or password." });
   }
 

@@ -1,6 +1,6 @@
-
 import { Router } from "express";
 import { uploadSpotImage } from "../middleware/upload.js";
+import { requireAdmin } from "../middleware/adminAuth.js";
 
 import {
   getSpots,
@@ -12,9 +12,11 @@ import {
 
 const router = Router();
 
-// READ
+// READ (open to everyone)
 router.get("/", getSpots);
-router.post("/upload", (req, res, next) => {
+
+// UPLOAD IMAGE (admin only)
+router.post("/upload", requireAdmin, (req, res, next) => {
   uploadSpotImage(req, res, (error) => {
     if (error) return next(error);
 
@@ -30,20 +32,16 @@ router.post("/upload", (req, res, next) => {
     });
   });
 });
+
 router.get("/:id", getSpotById);
 
+// CREATE (admin only)
+router.post("/", requireAdmin, createSpot);
 
-// CREATE
-// temporary router.post("/", createSpot);
-router.post("/", (req, res, next) => {
-  console.log("[POST ROUTE] Matched /api/spots");
-  next();
-}, createSpot);
+// UPDATE (admin only)
+router.put("/:id", requireAdmin, updateSpot);
 
-// UPDATE
-router.put("/:id", updateSpot);
-
-// DELETE
-router.delete("/:id", deleteSpot);
+// DELETE (admin only)
+router.delete("/:id", requireAdmin, deleteSpot);
 
 export default router;

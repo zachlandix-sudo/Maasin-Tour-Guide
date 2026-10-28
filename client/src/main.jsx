@@ -4,6 +4,7 @@ import { BrowserRouter } from "react-router-dom";
 import App from "./App.jsx";
 import AdminPage from "./AdminPage.jsx";
 import "./index.css";
+import "./SiteDarkMode.css";
 
 const adminLinkStyle = {
   position: "fixed",
@@ -22,6 +23,13 @@ const adminLinkStyle = {
 
 function Root() {
   const [isAdmin, setIsAdmin] = useState(window.location.hash === "#admin");
+  const [dark, setDark] = useState(() => {
+    try {
+      const saved = localStorage.getItem("siteTheme");
+      if (saved === "dark" || saved === "light") return saved === "dark";
+    } catch { /* ignore */ }
+    return window.matchMedia?.("(prefers-color-scheme: dark)").matches ?? false;
+  });
 
   useEffect(() => {
     const onHashChange = () => setIsAdmin(window.location.hash === "#admin");
@@ -29,12 +37,26 @@ function Root() {
     return () => window.removeEventListener("hashchange", onHashChange);
   }, []);
 
+  useEffect(() => {
+    document.documentElement.dataset.siteTheme = !isAdmin && dark ? "dark" : "light";
+  }, [dark, isAdmin]);
+
+  function toggleDark() {
+    const next = !dark;
+    setDark(next);
+    try { localStorage.setItem("siteTheme", next ? "dark" : "light"); } catch { /* ignore */ }
+  }
+
   if (isAdmin) return <AdminPage />;
 
   return (
     <BrowserRouter>
       <App />
       <a href="#admin" style={adminLinkStyle}>Admin login</a>
+      <button type="button" className="site-theme-btn" onClick={toggleDark}
+        aria-label="Switch light or dark mode">
+        {dark ? "☀️ Light" : "🌙 Dark"}
+      </button>
     </BrowserRouter>
   );
 }

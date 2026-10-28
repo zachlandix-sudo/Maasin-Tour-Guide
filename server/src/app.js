@@ -2,10 +2,14 @@ import express from "express";
 import cors from "cors";
 import spotRoutes from "./routes/spotRoutes.js";
 import itineraryRoutes from "./routes/itineraryRoutes.js";
+import chatRoutes from "./routes/chatRoutes.js";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const app = express();
+if (process.env.TRUST_PROXY === "1") {
+  app.set("trust proxy", 1);
+}
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const uploadsDirectory = path.resolve(__dirname, "../uploads");
@@ -48,6 +52,7 @@ app.get("/api/health", (_req, res) => {
 
 app.use("/api/spots", spotRoutes);
 app.use("/api/itineraries", itineraryRoutes);
+app.use("/api/chat", chatRoutes);
 
 // JSON response for unknown routes
 app.use((_req, res) => {

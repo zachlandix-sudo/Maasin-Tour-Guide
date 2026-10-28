@@ -51,6 +51,10 @@ function formToPayload(f) {
   return payload;
 }
 
+function goToWebsite() {
+  window.location.hash = "";
+}
+
 export default function AdminPage() {
   const [theme, setTheme] = useState(() => {
     try {
@@ -235,6 +239,8 @@ export default function AdminPage() {
                 value={login.password} onChange={(e) => setLogin({ ...login, password: e.target.value })} />
               <button type="submit" className="adm-btn adm-btn-primary" style={{ width: "100%" }}>Log in</button>
             </form>
+            <button type="button" className="adm-btn" style={{ width: "100%", marginTop: 10 }}
+              onClick={goToWebsite}>← Back to website</button>
           </div>
         </div>
       </div>
@@ -248,7 +254,10 @@ export default function AdminPage() {
       <div className="adm" data-theme={theme}>
         <header className="adm-top">
           <div className="adm-brand"><div className="adm-logo">🏝️</div>Maasin Admin</div>
-          <div className="adm-top-actions">{themeBtn}</div>
+          <div className="adm-top-actions">
+            <button type="button" className="adm-btn" onClick={goToWebsite}>← Website</button>
+            {themeBtn}
+          </div>
         </header>
         <main className="adm-main">
           <form onSubmit={handleSave}>
@@ -350,6 +359,7 @@ export default function AdminPage() {
       <header className="adm-top">
         <div className="adm-brand"><div className="adm-logo">🏝️</div>Maasin Admin</div>
         <div className="adm-top-actions">
+          <button type="button" className="adm-btn" onClick={goToWebsite}>← Website</button>
           {themeBtn}
           <button type="button" className="adm-btn" onClick={() => logout("")}>Log out</button>
         </div>

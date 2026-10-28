@@ -6,7 +6,7 @@ const API = import.meta.env.VITE_API_URL || "https://maasin-tour-guide-api.onren
 const CATEGORIES = [
   "Nature", "Beach", "Religious", "Historical", "Adventure", "Cultural", "Other",
   "Waterfalls & Rivers", "Islands & Snorkeling", "Mountains & Hiking",
-  "Food & Local Cuisine", "Festivals & Events", "Parks & Recreation",
+  "Food & Local Cuisine", "Festivals & Events",
 ];
 
 const EMPTY = {

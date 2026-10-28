@@ -1,4 +1,3 @@
-
 import "./AboutUs.css";
 
 const features = [
@@ -67,8 +66,8 @@ export default function AboutUs({ onClose })  {
 
         <div className="mtg-about-hero-image">
           <img
-            src="https://images.unsplash.com/photo-1500375592092-40eb2168fd21?auto=format&fit=crop&w=1400&q=85"
-            alt="Turquoise tropical ocean and coastal scenery"
+            src="/images/maasin1.jpg"
+            alt="Maasin City, Southern Leyte"
             loading="lazy"
           />
           <div className="mtg-about-image-overlay">
@@ -83,15 +82,15 @@ export default function AboutUs({ onClose })  {
         <div className="mtg-about-story-visual">
           <div className="mtg-about-photo mtg-about-photo-main">
             <img
-              src="https://images.unsplash.com/photo-1548013146-72479768bada?auto=format&fit=crop&w=900&q=85"
-              alt="Historic architecture and cultural heritage"
+              src="/images/maasin2.webp"
+              alt="Maasin City landmark"
               loading="lazy"
             />
           </div>
           <div className="mtg-about-photo mtg-about-photo-small">
             <img
-              src="https://images.unsplash.com/photo-1510414842594-a61c69b5ae57?auto=format&fit=crop&w=700&q=85"
-              alt="Tropical beach and clear water"
+              src="/images/maasin3.jpg"
+              alt="Maasin City scenery"
               loading="lazy"
             />
           </div>

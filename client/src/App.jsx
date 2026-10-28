@@ -86,6 +86,7 @@ function DestinationCard({ spot }) {
   const id = getSpotId(spot);
   const image =
     spot.imageUrl ||
+    spot.gallery?.[0] ||
     spot.image ||
     "https://images.unsplash.com/photo-1470770841072-f978cf4d019e?auto=format&fit=crop&w=900&q=80";
 

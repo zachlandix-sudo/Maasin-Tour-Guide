@@ -1,4 +1,3 @@
-
 import { Link, Routes, Route, useLocation } from "react-router-dom";
 import { useEffect, useState } from "react";
 import DestinationDetails from "./components/Destination.jsx";
@@ -164,7 +163,6 @@ function HomePage() {
     "Mountains & Hiking",
     "Food & Local Cuisine",
     "Festivals & Events",
-    "Parks & Recreation",
   ]);
   const [pace, setPace] = useState("packed");
   const [generatingItinerary, setGeneratingItinerary] = useState(false);
@@ -658,7 +656,6 @@ function HomePage() {
                 <option value="Mountains & Hiking">Mountains & Hiking</option>
                 <option value="Food & Local Cuisine">Food & Local Cuisine</option>
                 <option value="Festivals & Events">Festivals & Events</option>
-                <option value="Parks & Recreation">Parks & Recreation</option>
               </select>
             </div>
 

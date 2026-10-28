@@ -3,6 +3,7 @@ import cors from "cors";
 import spotRoutes from "./routes/spotRoutes.js";
 import itineraryRoutes from "./routes/itineraryRoutes.js";
 import chatRoutes from "./routes/chatRoutes.js";
+import { adminLogin } from "./middleware/adminAuth.js";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -50,6 +51,7 @@ app.get("/api/health", (_req, res) => {
 
 // temporary replacement app.use("/api/spots", spotRoutes);
 
+app.post("/api/admin/login", adminLogin);
 app.use("/api/spots", spotRoutes);
 app.use("/api/itineraries", itineraryRoutes);
 app.use("/api/chat", chatRoutes);

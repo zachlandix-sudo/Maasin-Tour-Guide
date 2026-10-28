@@ -158,11 +158,6 @@ function HomePage() {
     "Beach",
     "Adventure",
     "Cultural",
-    "Waterfalls & Rivers",
-    "Islands & Snorkeling",
-    "Mountains & Hiking",
-    "Food & Local Cuisine",
-    "Festivals & Events",
   ]);
   const [pace, setPace] = useState("packed");
   const [generatingItinerary, setGeneratingItinerary] = useState(false);
@@ -651,11 +646,6 @@ function HomePage() {
                 <option value="Adventure">Adventure</option>
                 <option value="Religious">Religious</option>
                 <option value="Historical">Historical</option>
-                <option value="Waterfalls & Rivers">Waterfalls & Rivers</option>
-                <option value="Islands & Snorkeling">Islands & Snorkeling</option>
-                <option value="Mountains & Hiking">Mountains & Hiking</option>
-                <option value="Food & Local Cuisine">Food & Local Cuisine</option>
-                <option value="Festivals & Events">Festivals & Events</option>
               </select>
             </div>
 

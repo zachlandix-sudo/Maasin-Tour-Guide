@@ -5,8 +5,6 @@ const API = import.meta.env.VITE_API_URL || "https://maasin-tour-guide-api.onren
 
 const CATEGORIES = [
   "Nature", "Beach", "Religious", "Historical", "Adventure", "Cultural", "Other",
-  "Waterfalls & Rivers", "Islands & Snorkeling", "Mountains & Hiking",
-  "Food & Local Cuisine", "Festivals & Events",
 ];
 
 const EMPTY = {
@@ -25,7 +23,8 @@ const fromLines = (s) => s.split("\n").map((x) => x.trim()).filter(Boolean);
 function spotToForm(s) {
   return {
     name: s.name || "", slug: s.slug || "", description: s.description || "",
-    category: s.category || "Other", address: s.address || "",
+    category: CATEGORIES.includes(s.category) ? s.category : "Other",
+    address: s.address || "",
     status: s.status || "published",
     entranceFee: s.entranceFee ?? "", estimatedTravelCost: s.estimatedTravelCost ?? "",
     latitude: s.coordinates?.latitude ?? "", longitude: s.coordinates?.longitude ?? "",

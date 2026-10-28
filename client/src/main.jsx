@@ -21,6 +21,16 @@ const adminLinkStyle = {
   boxShadow: "0 1px 4px rgba(0, 0, 0, 0.2)",
 };
 
+// Marks every element that has a background photo so dark mode leaves it alone.
+function markPhotoBackgrounds() {
+  document.querySelectorAll("body *").forEach((el) => {
+    if (el.classList.contains("keep-photo")) return;
+    if (el.parentElement?.closest(".keep-photo")) return;
+    const bg = getComputedStyle(el).backgroundImage;
+    if (bg && bg.includes("url(")) el.classList.add("keep-photo");
+  });
+}
+
 function Root() {
   const [isAdmin, setIsAdmin] = useState(window.location.hash === "#admin");
   const [dark, setDark] = useState(() => {
@@ -39,6 +49,22 @@ function Root() {
 
   useEffect(() => {
     document.documentElement.dataset.siteTheme = !isAdmin && dark ? "dark" : "light";
+  }, [dark, isAdmin]);
+
+  useEffect(() => {
+    if (isAdmin || !dark) return undefined;
+    let timer;
+    const schedule = () => {
+      clearTimeout(timer);
+      timer = setTimeout(markPhotoBackgrounds, 150);
+    };
+    markPhotoBackgrounds();
+    const observer = new MutationObserver(schedule);
+    observer.observe(document.body, { childList: true, subtree: true });
+    return () => {
+      observer.disconnect();
+      clearTimeout(timer);
+    };
   }, [dark, isAdmin]);
 
   function toggleDark() {

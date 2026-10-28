@@ -8,8 +8,16 @@ html[data-site-theme="dark"] video,
 html[data-site-theme="dark"] iframe,
 html[data-site-theme="dark"] canvas,
 html[data-site-theme="dark"] picture,
-html[data-site-theme="dark"] [style*="background-image"] {
+html[data-site-theme="dark"] .keep-photo {
   filter: invert(1) hue-rotate(180deg);
+}
+
+html[data-site-theme="dark"] .keep-photo img,
+html[data-site-theme="dark"] .keep-photo video,
+html[data-site-theme="dark"] .keep-photo iframe,
+html[data-site-theme="dark"] .keep-photo canvas,
+html[data-site-theme="dark"] .keep-photo picture {
+  filter: none;
 }
 
 .site-theme-btn {

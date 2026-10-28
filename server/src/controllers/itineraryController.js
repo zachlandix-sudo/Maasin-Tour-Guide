@@ -170,6 +170,31 @@ async function generateWithRetry(
   }
 }
 
+
+async function generateWithFallback(models, contents, config) {
+  let lastError;
+
+  for (const model of models) {
+    try {
+      const response = await generateWithRetry(model, contents, config);
+      const text = response.choices?.[0]?.message?.content;
+
+      if (typeof text !== "string" || !text.trim()) {
+        throw new Error("Groq returned empty itinerary content.");
+      }
+
+      parseJsonResponse(text);
+      return response;
+    } catch (error) {
+      lastError = error;
+      console.warn(
+        `Model ${model} failed (${error?.status ?? error?.message}). Trying the next model...`,
+      );
+    }
+  }
+
+  throw lastError;
+}
 export async function generateItinerary(req, res) {
   try {
     if (!process.env.OPENROUTER_API_KEY?.trim()) {
@@ -193,9 +218,10 @@ export async function generateItinerary(req, res) {
           "No published tourist spots are available for itinerary generation.",
       });
     }
-
-    const model =
-      process.env.OPENROUTER_MODEL || "openrouter/free";
+    const models = [
+      process.env.OPENROUTER_MODEL || "openrouter/free",
+      process.env.OPENROUTER_FALLBACK_MODEL,
+    ].filter(Boolean);
 
     const prompt = `
 You are a tourism itinerary assistant for Maasin City,
@@ -241,14 +267,13 @@ Rules:
 - Keep activities and advice practical.
 `;
 
-    const response = await generateWithRetry(
-      model,
+        const response = await generateWithFallback(
+      models,
       prompt,
       {
         maxOutputTokens: 2048,
       },
     );
-
     const generatedText =
       response.choices?.[0]?.message?.content;
 

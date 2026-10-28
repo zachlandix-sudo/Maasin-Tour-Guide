@@ -412,14 +412,14 @@ Rules:
     if (status === 429) {
       return res.status(503).json({
         message:
-          "Groq's usage limit was reached. Please check your Groq limits and try again later.",
+          "The AI is busy right now. Please try again in a minute.",
       });
     }
 
     if ([500, 503, 504].includes(status)) {
       return res.status(503).json({
         message:
-          "Groq is temporarily unavailable. Please try again shortly.",
+         "The AI service is temporarily unavailable. Please try again shortly.",
       });
     }
 

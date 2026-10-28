@@ -1014,3 +1014,36 @@
     min-height: 72px;
   }
 }
+
+.route-planner-empty {
+  padding: 28px 18px;
+  margin: 12px 0;
+  text-align: center;
+  background: #f5f8f5;
+  border: 1px solid #dce8df;
+  border-radius: 16px;
+}
+
+.route-planner-empty-icon {
+  display: block;
+  margin-bottom: 10px;
+  font-size: 32px;
+}
+
+.route-planner-empty h4 {
+  margin: 0 0 8px;
+  color: #234d3d;
+  font-size: 17px;
+}
+
+.route-planner-empty p {
+  margin: 0 0 10px;
+  color: #58665e;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.route-planner-empty small {
+  color: #718077;
+  font-size: 12px;
+}

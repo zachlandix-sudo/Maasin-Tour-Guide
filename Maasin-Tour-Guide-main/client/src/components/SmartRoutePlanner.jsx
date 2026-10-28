@@ -70,7 +70,6 @@ function formatDuration(seconds) {
 }
 
 export default function SmartRoutePlanner({ spots = [] }) {
-  
   console.log("SmartRoutePlanner received spots:", spots);
   console.log("Number of spots received:", spots.length);
   const mappedSpots = useMemo(() => {
@@ -451,7 +450,12 @@ export default function SmartRoutePlanner({ spots = [] }) {
 
   const displaySpots = routeData
     ? [routeData.startPoint, ...routeData.orderedSpots]
-    : [...(startingPoint ? [startingPoint] : []), ...selectedSpots];
+    : [
+        ...(startingPoint ? [startingPoint] : []),
+        ...mappedSpots.filter(
+          (spot) => !startingPoint || spot._id !== startingPoint._id,
+        ),
+      ];
 
   const displayRoute = routeData?.routeCoordinates || null;
 
@@ -699,29 +703,21 @@ export default function SmartRoutePlanner({ spots = [] }) {
             </button>
           </div>
 
-          {mappedSpots.length === 0 ? (
-            <p className="route-planner-empty">
-              No destinations have valid coordinates yet. Add latitude and
-              longitude to your tourist spot records first.
-            </p>
-          ) : (
-            <div className="route-planner-destinations">
-              {mappedSpots.map((spot) => (
-                <label className="route-planner-destination" key={spot._id}>
-                  <input
-                    type="checkbox"
-                    checked={validSelectedIds.includes(spot._id)}
-                    onChange={() => toggleSpot(spot._id)}
-                  />
-                  <span>
-                    <strong>{spot.name}</strong>
-                    <small>{spot.category || "Tourist destination"}</small>
-                  </span>
-                </label>
-              ))}
-            </div>
-          )}
-
+          <div className="route-planner-destinations">
+            {mappedSpots.map((spot) => (
+              <label className="route-planner-destination" key={spot._id}>
+                <input
+                  type="checkbox"
+                  checked={validSelectedIds.includes(spot._id)}
+                  onChange={() => toggleSpot(spot._id)}
+                />
+                <span>
+                  <strong>{spot.name}</strong>
+                  <small>{spot.category || "Tourist destination"}</small>
+                </span>
+              </label>
+            ))}
+          </div>
           <p className="route-planner-selection-count">
             {validSelectedIds.length} destination
             {validSelectedIds.length === 1 ? "" : "s"} selected

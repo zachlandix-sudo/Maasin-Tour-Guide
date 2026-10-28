@@ -5,6 +5,7 @@ import DestinationDetails from "./components/Destination.jsx";
 import AboutUs from "./components/AboutUs";
 import SmartRoutePlanner from "./components/SmartRoutePlanner.jsx";
 import ChatWidget from "./ChatWidget.jsx";
+import Contribute from "./pages/Contribute.jsx";
 import "./App.css";
 
 const API_URL =

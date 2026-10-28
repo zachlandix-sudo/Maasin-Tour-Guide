@@ -1,0 +1,327 @@
+import { GoogleGenAI } from "@google/genai";
+import mongoose from "mongoose";
+import Itinerary from "../models/Itinerary.js";
+import TouristSpot from "../models/TouristSpot.js";
+
+const ai = new GoogleGenAI({
+  apiKey: process.env.GEMINI_API_KEY,
+});
+
+const allowedPaces = ["relaxed", "moderate", "packed"];
+
+function validatePreferences(body) {
+  const travelers = Number(body.travelers);
+  const startingBudgetPerPerson = Number(body.startingBudgetPerPerson);
+
+  if (!Number.isInteger(travelers) || travelers < 1 || travelers > 50) {
+    throw new Error("Travelers must be an integer between 1 and 50.");
+  }
+
+  if (
+    !Number.isFinite(startingBudgetPerPerson) ||
+    startingBudgetPerPerson < 0 ||
+    startingBudgetPerPerson > 1000000
+  ) {
+    throw new Error(
+      "Starting budget must be between PHP 0 and PHP 1,000,000 per person.",
+    );
+  }
+
+  if (!allowedPaces.includes(body.pace || "moderate")) {
+    throw new Error("Pace must be relaxed, moderate, or packed.");
+  }
+
+  const interests = Array.isArray(body.interests)
+    ? body.interests
+        .filter(
+          (interest) =>
+            typeof interest === "string" && interest.trim().length > 0,
+        )
+        .slice(0, 10)
+    : [];
+
+  return {
+    travelers,
+    startingBudgetPerPerson,
+    pace: body.pace || "moderate",
+    interests,
+  };
+}
+
+function parseJsonResponse(text) {
+  const cleaned = text
+    .replace(/^```json\s*/i, "")
+    .replace(/^```\s*/i, "")
+    .replace(/\s*```$/, "")
+    .trim();
+
+  return JSON.parse(cleaned);
+}
+
+function calculateBudget(stops, travelers, startingBudgetPerPerson) {
+  const entranceFees = stops.reduce(
+    (sum, stop) => sum + stop.estimatedEntranceFeePerPerson * travelers,
+    0,
+  );
+
+  const transportation = stops.reduce(
+    (sum, stop) => sum + stop.estimatedTransportCostForGroup,
+    0,
+  );
+
+  const food = stops.reduce(
+    (sum, stop) => sum + stop.estimatedFoodCostPerPerson * travelers,
+    0,
+  );
+
+  const totalGroupCost = entranceFees + transportation + food;
+  const totalPerPerson = totalGroupCost / travelers;
+  const startingGroupBudget = startingBudgetPerPerson * travelers;
+
+  return {
+    entranceFees,
+    transportation,
+    food,
+    other: 0,
+    totalGroupCost,
+    totalPerPerson: Math.round(totalPerPerson * 100) / 100,
+    remainingGroupBudget: startingGroupBudget - totalGroupCost,
+    remainingPerPersonBudget: startingBudgetPerPerson - totalPerPerson,
+    currency: "PHP",
+  };
+}
+
+async function generateWithRetry(model, contents, config, maxRetries = 3) {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await ai.models.generateContent({
+        model,
+        contents,
+        config,
+      });
+    } catch (error) {
+      const retryable = [429, 500, 503, 504].includes(error.status);
+
+      if (!retryable || attempt >= maxRetries) {
+        throw error;
+      }
+
+      const delay = Math.min(1000 * 2 ** attempt, 8000);
+      console.warn(
+        `Gemini returned ${error.status}. Retrying in ${delay}ms...`,
+      );
+
+      await new Promise((resolve) => setTimeout(resolve, delay));
+    }
+  }
+}
+
+export async function generateItinerary(req, res) {
+  try {
+    if (!process.env.GEMINI_API_KEY) {
+      return res.status(503).json({
+        message: "Gemini API key is not configured on the server.",
+      });
+    }
+
+    const preferences = validatePreferences(req.body);
+
+    const touristSpots = await TouristSpot.find({
+      status: "published",
+    })
+      .select(
+        "name slug description shortDescription category address entranceFee estimatedTravelCost openingHours bestTimeToVisit travelTips",
+      )
+      .lean();
+
+    if (!touristSpots.length) {
+      return res.status(400).json({
+        message:
+          "No published tourist spots are available for itinerary generation.",
+      });
+    }
+
+    const model = process.env.GEMINI_MODEL || "gemini-2.5-flash";
+
+    const prompt = `
+You are a tourism itinerary assistant for Maasin City,
+Southern Leyte, Philippines.
+
+Create a practical one-day itinerary using ONLY the supplied
+published tourist spots. Do not invent destinations, entrance
+fees, opening hours, or verified travel durations.
+
+Visitor preferences:
+${JSON.stringify(preferences)}
+
+Available tourist spots:
+${JSON.stringify(touristSpots)}
+
+Return ONLY valid JSON with this structure:
+{
+  "title": "string",
+  "summary": "string",
+  "stops": [
+    {
+      "slug": "existing tourist spot slug",
+      "name": "existing tourist spot name",
+      "startTime": "08:00 AM",
+      "endTime": "09:00 AM",
+      "activity": "string",
+      "estimatedEntranceFeePerPerson": 0,
+      "estimatedTransportCostForGroup": 0,
+      "estimatedFoodCostPerPerson": 0
+    }
+  ],
+  "travelTips": ["string"]
+}
+
+Rules:
+- Include only supplied tourist spots and use their exact slugs.
+- Produce a sensible schedule for one day.
+- Respect the visitor's interests and preferred pace.
+- Use supplied entranceFee and estimatedTravelCost when available.
+- If a cost is unknown, use 0 rather than inventing a factual price.
+- Cost fields must be non-negative numbers in Philippine pesos.
+- estimatedTransportCostForGroup is a group total for that leg.
+- Keep activities and advice practical.
+`;
+
+    const response = await generateWithRetry(model, prompt, {
+      responseMimeType: "application/json",
+    });
+
+    const generated = parseJsonResponse(response.text || "");
+
+    if (
+      !generated ||
+      typeof generated.title !== "string" ||
+      !Array.isArray(generated.stops)
+    ) {
+      throw new Error("Gemini returned an invalid itinerary structure.");
+    }
+
+    const spotsBySlug = new Map(touristSpots.map((spot) => [spot.slug, spot]));
+
+    const stops = generated.stops.map((stop) => {
+      const spot = spotsBySlug.get(stop.slug);
+
+      if (!spot) {
+        throw new Error(
+          "Gemini returned a destination that is not in the database.",
+        );
+      }
+
+      const nonNegativeNumber = (value) => {
+        const number = Number(value);
+        return Number.isFinite(number) && number >= 0 ? number : 0;
+      };
+
+      return {
+        touristSpot: spot._id,
+        name: spot.name,
+        startTime: String(stop.startTime || ""),
+        endTime: String(stop.endTime || ""),
+        activity: String(stop.activity || ""),
+        estimatedEntranceFeePerPerson: nonNegativeNumber(
+          stop.estimatedEntranceFeePerPerson,
+        ),
+        estimatedTransportCostForGroup: nonNegativeNumber(
+          stop.estimatedTransportCostForGroup,
+        ),
+        estimatedFoodCostPerPerson: nonNegativeNumber(
+          stop.estimatedFoodCostPerPerson,
+        ),
+      };
+    });
+
+    if (!stops.length) {
+      return res.status(422).json({
+        message: "The AI did not produce any itinerary stops.",
+      });
+    }
+
+    const budget = calculateBudget(
+      stops,
+      preferences.travelers,
+      preferences.startingBudgetPerPerson,
+    );
+
+    const itinerary = await Itinerary.create({
+      title: generated.title.trim().slice(0, 150),
+      duration: "one-day",
+      interests: preferences.interests,
+      travelers: preferences.travelers,
+      startingBudgetPerPerson: preferences.startingBudgetPerPerson,
+      pace: preferences.pace,
+      stops,
+      budget,
+      summary: String(generated.summary || "").slice(0, 2000),
+      travelTips: Array.isArray(generated.travelTips)
+        ? generated.travelTips
+            .filter((tip) => typeof tip === "string")
+            .slice(0, 20)
+        : [],
+      status: "generated",
+    });
+
+    return res.status(201).json({
+      message: "Itinerary generated and saved successfully.",
+      itinerary,
+    });
+  } catch (error) {
+    console.error("Generate itinerary error:", error);
+
+    if (
+      error.message.includes("Travelers must") ||
+      error.message.includes("Starting budget must") ||
+      error.message.includes("Pace must")
+    ) {
+      return res.status(400).json({ message: error.message });
+    }
+
+    if (error instanceof SyntaxError) {
+      return res.status(502).json({
+        message: "Gemini returned invalid JSON. Please try again.",
+      });
+    }
+
+    if (error.status === 429 || error.status === 503 || error.status === 504) {
+      return res.status(503).json({
+        message: "Gemini is temporarily unavailable or its quota was reached.",
+      });
+    }
+
+    return res.status(500).json({
+      message: "Unable to generate itinerary.",
+    });
+  }
+}
+
+export async function getItineraryById(req, res) {
+  try {
+    if (!mongoose.isValidObjectId(req.params.id)) {
+      return res.status(400).json({
+        message: "Invalid itinerary ID.",
+      });
+    }
+
+    const itinerary = await Itinerary.findById(req.params.id)
+      .populate("stops.touristSpot", "name slug category address imageUrl")
+      .lean();
+
+    if (!itinerary) {
+      return res.status(404).json({
+        message: "Itinerary not found.",
+      });
+    }
+
+    return res.json({ itinerary });
+  } catch (error) {
+    console.error("Get itinerary error:", error);
+
+    return res.status(500).json({
+      message: "Unable to retrieve itinerary.",
+    });
+  }
+}

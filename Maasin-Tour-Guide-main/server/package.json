@@ -1,0 +1,24 @@
+{
+  "name": "maasin-tour-guide-backend",
+  "version": "1.0.0",
+  "description": "Express REST API backend for MAASIN TOUR GUIDE",
+  "type": "module",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "nodemon src/server.js",
+    "seed": "node src/seed.js"
+  },
+  "dependencies": {
+    "@google/genai": "^2.31.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "mongoose": "^8.9.5",
+    "multer": "^2.5.0",
+    "openai": "^7.45.0"
+  },
+  "devDependencies": {
+    "nodemon": "^1.14.10"
+  }
+}

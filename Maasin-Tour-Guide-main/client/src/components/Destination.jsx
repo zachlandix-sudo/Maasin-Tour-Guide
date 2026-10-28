@@ -1,0 +1,568 @@
+import { useEffect, useState } from "react";
+import { Link, useParams } from "react-router-dom";
+import "./Destination.css";
+
+const API_URL =
+  import.meta.env.VITE_API_BASE_URL || "http://localhost:5000/api";
+
+function safeArray(value) {
+  return Array.isArray(value) ? value : [];
+}
+
+function safeText(value, fallback = "") {
+  return typeof value === "string" && value.trim() ? value.trim() : fallback;
+}
+
+function getListItemText(item) {
+  if (typeof item === "string") return item.trim();
+
+  if (item && typeof item === "object") {
+    return safeText(item.name) || safeText(item.title);
+  }
+
+  return "";
+}
+
+function formatPeso(value) {
+  if (value === null || value === undefined || value === "") {
+    return "Check locally";
+  }
+
+  const amount = Number(value);
+
+  return Number.isFinite(amount)
+    ? `₱${amount.toLocaleString("en-PH")}`
+    : String(value);
+}
+
+function InfoCard({ icon, label, value }) {
+  return (
+    <article className="travel-info-card">
+      <span className="travel-info-icon" aria-hidden="true">
+        {icon}
+      </span>
+      <div>
+        <p className="travel-info-label">{label}</p>
+        <p className="travel-info-value">{value || "Not specified"}</p>
+      </div>
+    </article>
+  );
+}
+
+function InformationList({ title, icon, items, id }) {
+  const listItems = safeArray(items).map(getListItemText).filter(Boolean);
+
+  if (listItems.length === 0) return null;
+
+  return (
+    <section className="destination-section" id={id}>
+      <div className="destination-section-heading">
+        <span className="destination-section-icon" aria-hidden="true">
+          {icon}
+        </span>
+        <div>
+          <p className="destination-eyebrow">EXPLORE MORE</p>
+          <h2>{title}</h2>
+        </div>
+      </div>
+
+      <ul className="destination-check-list">
+        {listItems.map((text, index) => (
+          <li key={`${text}-${index}`}>
+            <span className="destination-check" aria-hidden="true">
+              ✓
+            </span>
+            <span>{text}</span>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+export default function DestinationDetails() {
+  const { id } = useParams();
+  const [spot, setSpot] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    const controller = new AbortController();
+
+    async function loadSpot() {
+      setLoading(true);
+      setError("");
+      setSpot(null);
+
+      try {
+        const response = await fetch(
+          `${API_URL}/spots/${encodeURIComponent(id)}`,
+          { signal: controller.signal },
+        );
+
+        const result = await response.json();
+
+        if (!response.ok) {
+          throw new Error(result.message || "Unable to load this destination.");
+        }
+
+        setSpot(result.data || result.spot || result);
+      } catch (err) {
+        if (err.name !== "AbortError") {
+          setError(err.message || "Unable to load destination.");
+        }
+      } finally {
+        if (!controller.signal.aborted) setLoading(false);
+      }
+    }
+
+    loadSpot();
+
+    return () => controller.abort();
+  }, [id]);
+
+  if (loading) {
+    return (
+      <main className="destination-page">
+        <div className="destination-status">
+          <span className="destination-spinner" />
+          <h2>Discovering your destination</h2>
+          <p>Please wait while we load the travel information.</p>
+        </div>
+      </main>
+    );
+  }
+
+  if (error || !spot) {
+    return (
+      <main className="destination-page">
+        <div className="destination-status">
+          <span className="destination-status-icon">!</span>
+          <h2>Destination unavailable</h2>
+          <p>{error || "We couldn't find this destination."}</p>
+          <Link className="destination-button" to="/">
+            ← Back to destinations
+          </Link>
+        </div>
+      </main>
+    );
+  }
+
+  const gallery = safeArray(spot.gallery).filter(
+    (item) => typeof item === "string" && item.trim(),
+  );
+
+  const heroImage = safeText(spot.imageUrl) || gallery[0] || "";
+
+  const destinationName = safeText(spot.name, "Local destination");
+  const destinationAddress = safeText(
+    spot.address,
+    "Maasin City, Southern Leyte",
+  );
+  const description =
+    safeText(spot.shortDescription) || safeText(spot.description);
+
+  const coordinates = spot.coordinates || {};
+  const latitude = Number(coordinates.latitude);
+  const longitude = Number(coordinates.longitude);
+
+  const hasCoordinates =
+    coordinates.latitude !== "" &&
+    coordinates.longitude !== "" &&
+    coordinates.latitude != null &&
+    coordinates.longitude != null &&
+    Number.isFinite(latitude) &&
+    Number.isFinite(longitude) &&
+    latitude >= -90 &&
+    latitude <= 90 &&
+    longitude >= -180 &&
+    longitude <= 180;
+
+  const mapsUrl = hasCoordinates
+    ? `https://www.google.com/maps/dir/?api=1&destination=${latitude},${longitude}`
+    : spot.address
+      ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+          `${spot.name}, ${spot.address}, Maasin City, Southern Leyte`,
+        )}`
+      : "";
+
+  const sections = [
+    { id: "about", label: "Overview" },
+    { id: "visitor-info", label: "Visitor info" },
+    { id: "highlights", label: "Highlights" },
+    { id: "travel-tips", label: "Travel tips" },
+  ];
+
+  return (
+    <main className="destination-page">
+      <div className="destination-container">
+        <nav className="destination-breadcrumb" aria-label="Breadcrumb">
+          <Link to="/">Home</Link>
+          <span aria-hidden="true">/</span>
+          <Link
+            to="/#destinations"
+            onClick={() => {
+              sessionStorage.setItem("scrollToDestinations", "true");
+            }}
+          >
+            Destinations
+          </Link>
+          <span aria-hidden="true">/</span>
+          <span className="destination-current" aria-current="page">
+            {destinationName}
+          </span>
+        </nav>
+
+        {/* Destination hero */}
+        <header className="destination-hero">
+          {heroImage ? (
+            <img
+              className="destination-hero-image"
+              src={heroImage}
+              alt={destinationName}
+              fetchPriority="high"
+            />
+          ) : (
+            <div className="destination-hero-placeholder">
+              <span aria-hidden="true">🌿</span>
+              <p>Your next Maasin adventure awaits</p>
+            </div>
+          )}
+
+          <div className="destination-hero-overlay" />
+
+          <div className="destination-hero-content">
+            <span className="destination-category">
+              {spot.category || "Local destination"}
+            </span>
+
+            <p className="destination-hero-location">
+              <span aria-hidden="true">⌖</span>
+              {destinationAddress}
+            </p>
+
+            <h1>{destinationName}</h1>
+            {description && (
+              <p className="destination-hero-description">{description}</p>
+            )}
+
+            <div className="destination-hero-actions">
+              {mapsUrl && (
+                <a
+                  className="destination-button destination-button-light"
+                  href={mapsUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  Get directions <span aria-hidden="true">↗</span>
+                </a>
+              )}
+
+              <a className="destination-text-link" href="#visitor-info">
+                Plan your visit ↓
+              </a>
+            </div>
+          </div>
+
+          <span className="destination-image-caption">EXPLORE MAASIN CITY</span>
+        </header>
+
+        {/* Quick visitor information */}
+        <section
+          className="destination-quick-info"
+          id="visitor-info"
+          aria-label="Quick visitor information"
+        >
+          <InfoCard
+            icon="₱"
+            label="Entrance fee"
+            value={formatPeso(spot.entranceFee)}
+          />
+          <InfoCard
+            icon="◷"
+            label="Opening hours"
+            value={spot.openingHours || "Check locally"}
+          />
+          <InfoCard
+            icon="☀"
+            label="Best time to visit"
+            value={spot.bestTimeToVisit || "Not specified"}
+          />
+          <InfoCard
+            icon="↗"
+            label="Estimated travel cost"
+            value={formatPeso(spot.estimatedTravelCost)}
+          />
+        </section>
+
+        {/* Section navigation */}
+        <nav className="destination-section-nav" aria-label="On this page">
+          {sections.map((section) => (
+            <a key={section.id} href={`#${section.id}`}>
+              {section.label}
+            </a>
+          ))}
+        </nav>
+
+        <div className="destination-content-grid">
+          <div className="destination-main-content">
+            <section
+              className="destination-section destination-about"
+              id="about"
+            >
+              <p className="destination-eyebrow">GET TO KNOW THE PLACE</p>
+              <h2>About this destination</h2>
+              <p className="destination-body-copy">
+                {spot.description ||
+                  spot.shortDescription ||
+                  "More information about this destination will be added soon."}
+              </p>
+
+              {safeArray(spot.highlights).length > 0 && (
+                <div className="destination-highlight-box">
+                  <h3>Why visit this place?</h3>
+                  <ul>
+                    {safeArray(spot.highlights).map((item, index) => {
+                      const text = getListItemText(item);
+                      if (!text) return null;
+
+                      return (
+                        <li key={`${text}-${index}`}>
+                          <span aria-hidden="true">✦</span>
+                          {text}
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </div>
+              )}
+            </section>
+
+            {spot.origin && (
+              <section className="destination-section">
+                <div className="destination-section-heading">
+                  <span className="destination-section-icon">⌘</span>
+                  <div>
+                    <p className="destination-eyebrow">BACKGROUND</p>
+                    <h2>Origin</h2>
+                  </div>
+                </div>
+                <p className="destination-body-copy">{spot.origin}</p>
+              </section>
+            )}
+
+            {spot.history && (
+              <section className="destination-section">
+                <div className="destination-section-heading">
+                  <span className="destination-section-icon">◷</span>
+                  <div>
+                    <p className="destination-eyebrow">THE STORY</p>
+                    <h2>History</h2>
+                  </div>
+                </div>
+                <p className="destination-body-copy">{spot.history}</p>
+              </section>
+            )}
+
+            {spot.culturalSignificance && (
+              <section className="destination-section">
+                <div className="destination-section-heading">
+                  <span className="destination-section-icon">✧</span>
+                  <div>
+                    <p className="destination-eyebrow">LOCAL HERITAGE</p>
+                    <h2>Cultural significance</h2>
+                  </div>
+                </div>
+                <p className="destination-body-copy">
+                  {spot.culturalSignificance}
+                </p>
+              </section>
+            )}
+
+            <InformationList
+              id="highlights"
+              title="Highlights & things to do"
+              icon="✦"
+              items={spot.highlights}
+            />
+
+            <InformationList
+              title="Available facilities"
+              icon="⌂"
+              items={spot.facilities}
+            />
+
+            <InformationList
+              id="travel-tips"
+              title="Travel tips"
+              icon="↗"
+              items={spot.travelTips}
+            />
+
+            {safeArray(spot.nearbyAttractions).length > 0 && (
+              <InformationList
+                title="Nearby attractions"
+                icon="⌖"
+                items={spot.nearbyAttractions}
+              />
+            )}
+
+            {/* Photo gallery */}
+            {gallery.length > 0 && (
+              <section className="destination-section">
+                <div className="destination-section-heading">
+                  <span className="destination-section-icon">▧</span>
+                  <div>
+                    <p className="destination-eyebrow">A CLOSER LOOK</p>
+                    <h2>Destination gallery</h2>
+                  </div>
+                </div>
+
+                <div className="destination-detail-gallery">
+                  {gallery.map((url, index) => (
+                    <a
+                      className="destination-gallery-item"
+                      href={url}
+                      target="_blank"
+                      rel="noreferrer"
+                      key={`${url}-${index}`}
+                      aria-label={`Open photo ${index + 1} of ${spot.name}`}
+                    >
+                      <img
+                        src={url}
+                        alt={`${spot.name} — photo ${index + 1}`}
+                        loading="lazy"
+                      />
+                      <span aria-hidden="true">↗</span>
+                    </a>
+                  ))}
+                </div>
+              </section>
+            )}
+
+            {/* Historical references */}
+            {safeArray(spot.historySources).length > 0 && (
+              <section className="destination-section">
+                <div className="destination-section-heading">
+                  <span className="destination-section-icon">▤</span>
+                  <div>
+                    <p className="destination-eyebrow">FURTHER READING</p>
+                    <h2>History & references</h2>
+                  </div>
+                </div>
+
+                <ul className="destination-source-list">
+                  {safeArray(spot.historySources).map((source, index) => {
+                    if (
+                      !source ||
+                      typeof source !== "object" ||
+                      Array.isArray(source)
+                    ) {
+                      return null;
+                    }
+
+                    return (
+                      <li key={`${source.url || source.title}-${index}`}>
+                        <span aria-hidden="true">↗</span>
+                        <div>
+                          {source.url ? (
+                            <a
+                              href={source.url}
+                              target="_blank"
+                              rel="noreferrer"
+                            >
+                              {source.title || source.url}
+                            </a>
+                          ) : (
+                            <strong>{source.title || "Reference"}</strong>
+                          )}
+
+                          {source.publisher && <p>{source.publisher}</p>}
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ul>
+
+                <p className="destination-disclaimer">
+                  Historical information should be checked against its listed
+                  sources. AI-generated summaries should not be treated as
+                  verified history until reviewed.
+                </p>
+              </section>
+            )}
+          </div>
+
+          {/* Sticky travel planner sidebar */}
+          <aside className="destination-sidebar">
+            <div className="destination-planner-card">
+              <p className="destination-eyebrow">BEFORE YOU GO</p>
+              <h2>Plan your visit</h2>
+              <p>
+                Keep these essential details in mind before exploring this
+                destination.
+              </p>
+
+              <div className="destination-planner-detail">
+                <span aria-hidden="true">⌖</span>
+                <div>
+                  <strong>Where to go</strong>
+                  <p>{spot.address || "Maasin City, Southern Leyte"}</p>
+                </div>
+              </div>
+
+              <div className="destination-planner-detail">
+                <span aria-hidden="true">₱</span>
+                <div>
+                  <strong>Budget reminder</strong>
+                  <p>Entrance fee: {formatPeso(spot.entranceFee)}</p>
+                  <p>Travel estimate: {formatPeso(spot.estimatedTravelCost)}</p>
+                </div>
+              </div>
+
+              <div className="destination-planner-detail">
+                <span aria-hidden="true">◷</span>
+                <div>
+                  <strong>Check before leaving</strong>
+                  <p>
+                    Confirm current opening hours, fees, and local travel
+                    arrangements.
+                  </p>
+                </div>
+              </div>
+
+              {mapsUrl && (
+                <a
+                  className="destination-button destination-button-primary"
+                  href={mapsUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  Open directions ↗
+                </a>
+              )}
+
+              <Link className="destination-back-link" to="/">
+                ← Explore more destinations
+              </Link>
+            </div>
+
+            <div className="destination-sidebar-note">
+              <span aria-hidden="true">🌿</span>
+              <p>
+                Travel thoughtfully. Respect local communities and help keep
+                Maasin's beautiful places clean.
+              </p>
+            </div>
+          </aside>
+        </div>
+
+        <footer className="destination-footer">
+          <p>MAASIN TOUR GUIDE</p>
+          <span>Discover more. Travel meaningfully.</span>
+          <Link to="/">Back to destinations ↑</Link>
+        </footer>
+      </div>
+    </main>
+  );
+}

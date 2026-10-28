@@ -65,6 +65,9 @@ export default function AdminPage() {
   const [token, setToken] = useState(() => sessionStorage.getItem("adminToken") || "");
   const [login, setLogin] = useState({ username: "", password: "" });
   const [loginMsg, setLoginMsg] = useState({ text: "", type: "" });
+  const [failedCount, setFailedCount] = useState(0);
+  const [blocked, setBlocked] = useState(false);
+  const [showForgot, setShowForgot] = useState(false);
   const [spots, setSpots] = useState([]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -129,6 +132,11 @@ export default function AdminPage() {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
+        if (res.status === 429) {
+          setBlocked(true);
+        } else if (res.status === 401) {
+          setFailedCount((n) => n + 1);
+        }
         setLoginMsg({ text: data.message || `Login failed (${res.status}).`, type: "error" });
         return;
       }
@@ -136,6 +144,9 @@ export default function AdminPage() {
       setToken(data.token);
       setLogin({ username: "", password: "" });
       setLoginMsg({ text: "", type: "" });
+      setFailedCount(0);
+      setBlocked(false);
+      setShowForgot(false);
     } catch {
       setLoginMsg({ text: "Could not reach the server. Try again in a minute.", type: "error" });
     }
@@ -216,6 +227,7 @@ export default function AdminPage() {
 
   /* ---------- Login screen ---------- */
   if (!token) {
+    const offerForgot = failedCount >= 3 || blocked;
     return (
       <div className="adm" data-theme={theme}>
         <div className="adm-login-wrap">
@@ -238,6 +250,33 @@ export default function AdminPage() {
                 value={login.password} onChange={(e) => setLogin({ ...login, password: e.target.value })} />
               <button type="submit" className="adm-btn adm-btn-primary" style={{ width: "100%" }}>Log in</button>
             </form>
+
+            {offerForgot && (
+              <div style={{ marginTop: 12, textAlign: "center" }}>
+                <button type="button" className="adm-btn adm-btn-sm"
+                  onClick={() => setShowForgot((v) => !v)}>
+                  {showForgot ? "Hide help" : "Forgot password?"}
+                </button>
+              </div>
+            )}
+
+            {offerForgot && showForgot && (
+              <div className="adm-info" style={{ marginTop: 12, textAlign: "left" }}>
+                <b>How to reset the admin password</b>
+                <ol style={{ margin: "8px 0 0", paddingLeft: 20 }}>
+                  <li>Log in to Render and open the <b>maasin-tour-guide-api</b> service.</li>
+                  <li>Click <b>Environment</b> in the left menu.</li>
+                  <li>Find <b>ADMIN_PASSWORD</b>, click Edit, and type a new password.</li>
+                  <li>Click <b>Save changes</b>. Render restarts the server (this can take a few minutes).</li>
+                  <li>Log in here with the new password.</li>
+                </ol>
+                <p style={{ margin: "8px 0 0" }}>
+                  After 10 wrong tries the server blocks your address for 15 minutes.
+                  If you are blocked, wait 15 minutes and try again.
+                </p>
+              </div>
+            )}
+
             <button type="button" className="adm-btn" style={{ width: "100%", marginTop: 10 }}
               onClick={goToWebsite}>← Back to website</button>
           </div>

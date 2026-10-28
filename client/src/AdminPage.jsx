@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import "./AdminPage.css";
 
 const API = import.meta.env.VITE_API_URL || "https://maasin-tour-guide-api.onrender.com";
 
@@ -51,25 +52,57 @@ function formToPayload(f) {
 }
 
 export default function AdminPage() {
+  const [theme, setTheme] = useState(() => {
+    try {
+      const saved = localStorage.getItem("adminTheme");
+      if (saved === "dark" || saved === "light") return saved;
+    } catch { /* ignore */ }
+    return window.matchMedia?.("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+  });
   const [token, setToken] = useState(() => sessionStorage.getItem("adminToken") || "");
   const [login, setLogin] = useState({ username: "", password: "" });
+  const [loginMsg, setLoginMsg] = useState({ text: "", type: "" });
   const [spots, setSpots] = useState([]);
-  const [form, setForm] = useState(null); // null = hidden
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [form, setForm] = useState(null); // null = list view
   const [editingId, setEditingId] = useState(null);
-  const [message, setMessage] = useState("");
+  const [toDelete, setToDelete] = useState(null);
+  const [toast, setToast] = useState(null);
+  const [search, setSearch] = useState("");
+  const [filterCat, setFilterCat] = useState("All");
 
   const authHeaders = {
     "Content-Type": "application/json",
     Authorization: `Bearer ${token}`,
   };
 
+  function toggleTheme() {
+    const next = theme === "dark" ? "light" : "dark";
+    setTheme(next);
+    try { localStorage.setItem("adminTheme", next); } catch { /* ignore */ }
+  }
+
+  function notify(text, type = "ok") {
+    setToast({ text, type });
+  }
+
+  useEffect(() => {
+    if (!toast) return undefined;
+    const t = setTimeout(() => setToast(null), 3500);
+    return () => clearTimeout(t);
+  }, [toast]);
+
   async function loadSpots() {
+    setLoading(true);
     try {
       const res = await fetch(`${API}/api/spots`);
       const data = await res.json();
       setSpots(Array.isArray(data) ? data : data.spots || data.data || []);
     } catch {
-      setMessage("Could not load spots. The server may be waking up; try again in a minute.");
+      notify("Could not load spots. The server may be waking up; try again in a minute.", "error");
+    } finally {
+      setLoading(false);
     }
   }
 
@@ -78,12 +111,13 @@ export default function AdminPage() {
   function logout(note) {
     sessionStorage.removeItem("adminToken");
     setToken("");
-    if (note) setMessage(note);
+    setForm(null);
+    setLoginMsg(note ? { text: note, type: "info" } : { text: "", type: "" });
   }
 
   async function handleLogin(e) {
     e.preventDefault();
-    setMessage("Logging in... (the server may take up to a minute to wake up)");
+    setLoginMsg({ text: "Logging in... the server may take up to a minute to wake up.", type: "info" });
     try {
       const res = await fetch(`${API}/api/admin/login`, {
         method: "POST",
@@ -91,39 +125,55 @@ export default function AdminPage() {
         body: JSON.stringify(login),
       });
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) { setMessage(data.message || `Login failed (${res.status}).`); return; }
+      if (!res.ok) {
+        setLoginMsg({ text: data.message || `Login failed (${res.status}).`, type: "error" });
+        return;
+      }
       sessionStorage.setItem("adminToken", data.token);
       setToken(data.token);
       setLogin({ username: "", password: "" });
-      setMessage("");
+      setLoginMsg({ text: "", type: "" });
     } catch {
-      setMessage("Could not reach the server.");
+      setLoginMsg({ text: "Could not reach the server. Try again in a minute.", type: "error" });
     }
   }
 
   async function handleSave(e) {
     e.preventDefault();
-    const url = editingId ? `${API}/api/spots/${editingId}` : `${API}/api/spots`;
-    const res = await fetch(url, {
-      method: editingId ? "PUT" : "POST",
-      headers: authHeaders,
-      body: JSON.stringify(formToPayload(form)),
-    });
-    const data = await res.json().catch(() => ({}));
-    if (res.status === 401) { logout("Session expired. Please log in again."); return; }
-    if (!res.ok) { setMessage(data.message || `Save failed (${res.status}).`); return; }
-    setMessage(editingId ? "Spot updated." : "Spot added.");
-    setForm(null); setEditingId(null);
-    loadSpots();
+    setSaving(true);
+    try {
+      const url = editingId ? `${API}/api/spots/${editingId}` : `${API}/api/spots`;
+      const res = await fetch(url, {
+        method: editingId ? "PUT" : "POST",
+        headers: authHeaders,
+        body: JSON.stringify(formToPayload(form)),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.status === 401) { logout("Session expired. Please log in again."); return; }
+      if (!res.ok) { notify(data.message || `Save failed (${res.status}).`, "error"); return; }
+      notify(editingId ? "Spot updated." : "Spot added.");
+      setForm(null);
+      setEditingId(null);
+      loadSpots();
+    } catch {
+      notify("Could not reach the server.", "error");
+    } finally {
+      setSaving(false);
+    }
   }
 
-  async function handleDelete(spot) {
-    if (!window.confirm(`Delete "${spot.name}"? This cannot be undone.`)) return;
-    const res = await fetch(`${API}/api/spots/${spot._id}`, { method: "DELETE", headers: authHeaders });
-    if (res.status === 401) { logout("Session expired. Please log in again."); return; }
-    if (!res.ok) { setMessage(`Delete failed (${res.status}).`); return; }
-    setMessage("Spot deleted.");
-    loadSpots();
+  async function confirmDelete() {
+    const spot = toDelete;
+    setToDelete(null);
+    try {
+      const res = await fetch(`${API}/api/spots/${spot._id}`, { method: "DELETE", headers: authHeaders });
+      if (res.status === 401) { logout("Session expired. Please log in again."); return; }
+      if (!res.ok) { notify(`Delete failed (${res.status}).`, "error"); return; }
+      notify("Spot deleted.");
+      loadSpots();
+    } catch {
+      notify("Could not reach the server.", "error");
+    }
   }
 
   const set = (key) => (e) => {
@@ -135,93 +185,259 @@ export default function AdminPage() {
     });
   };
 
-  const box = { display: "block", width: "100%", padding: 8, marginBottom: 10, boxSizing: "border-box" };
-  const wrap = { maxWidth: 900, margin: "0 auto", padding: 16, fontFamily: "sans-serif" };
+  const stats = useMemo(() => ({
+    total: spots.length,
+    published: spots.filter((s) => s.status === "published").length,
+    draft: spots.filter((s) => s.status === "draft").length,
+  }), [spots]);
 
+  const visible = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return spots.filter((s) => {
+      const okCat = filterCat === "All" || s.category === filterCat;
+      const okText = !q || `${s.name} ${s.address}`.toLowerCase().includes(q);
+      return okCat && okText;
+    });
+  }, [spots, search, filterCat]);
+
+  const themeBtn = (
+    <button type="button" className="adm-btn adm-icon-btn" onClick={toggleTheme}
+      title="Switch light or dark mode" aria-label="Switch light or dark mode">
+      {theme === "dark" ? "☀️" : "🌙"}
+    </button>
+  );
+
+  const toastEl = toast && (
+    <div className={`adm-toast ${toast.type === "error" ? "adm-toast-error" : ""}`}>{toast.text}</div>
+  );
+
+  /* ---------- Login screen ---------- */
   if (!token) {
     return (
-      <div style={{ ...wrap, maxWidth: 360 }}>
-        <h2>Admin login</h2>
-        <form onSubmit={handleLogin}>
-          <input style={box} placeholder="Username" autoComplete="username"
-            value={login.username} onChange={(e) => setLogin({ ...login, username: e.target.value })} />
-          <input style={box} type="password" placeholder="Password" autoComplete="current-password"
-            value={login.password} onChange={(e) => setLogin({ ...login, password: e.target.value })} />
-          <button type="submit">Log in</button>
-        </form>
-        {message && <p>{message}</p>}
+      <div className="adm" data-theme={theme}>
+        <div className="adm-login-wrap">
+          <div className="adm-card adm-login">
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div className="adm-logo">🏝️</div>
+              {themeBtn}
+            </div>
+            <h1>Admin login</h1>
+            <p className="adm-sub">Maasin Tour Guide. Sign in to manage tourist spots.</p>
+            {loginMsg.text && (
+              <div className={loginMsg.type === "error" ? "adm-error" : "adm-info"}>{loginMsg.text}</div>
+            )}
+            <form onSubmit={handleLogin}>
+              <label className="adm-label">Username</label>
+              <input className="adm-input" autoComplete="username" required
+                value={login.username} onChange={(e) => setLogin({ ...login, username: e.target.value })} />
+              <label className="adm-label">Password</label>
+              <input className="adm-input" type="password" autoComplete="current-password" required
+                value={login.password} onChange={(e) => setLogin({ ...login, password: e.target.value })} />
+              <button type="submit" className="adm-btn adm-btn-primary" style={{ width: "100%" }}>Log in</button>
+            </form>
+          </div>
+        </div>
       </div>
     );
   }
 
+  /* ---------- Add / Edit form ---------- */
   if (form) {
+    const firstPic = fromLines(form.gallery)[0];
     return (
-      <div style={wrap}>
-        <h2>{editingId ? "Edit spot" : "Add spot"}</h2>
-        <form onSubmit={handleSave}>
-          <label>Name</label>
-          <input style={box} required value={form.name} onChange={set("name")} />
-          <label>Slug (auto from name; lowercase letters, numbers, hyphens)</label>
-          <input style={box} required pattern="[a-z0-9]+(-[a-z0-9]+)*" value={form.slug} onChange={set("slug")} />
-          <label>Description (at least 10 characters)</label>
-          <textarea style={box} required minLength={10} rows={4} value={form.description} onChange={set("description")} />
-          <label>Category</label>
-          <select style={box} value={form.category} onChange={set("category")}>
-            {CATEGORIES.map((c) => <option key={c}>{c}</option>)}
-          </select>
-          <label>Address</label>
-          <input style={box} required value={form.address} onChange={set("address")} />
-          <label>Status (the public site shows only "published")</label>
-          <select style={box} value={form.status} onChange={set("status")}>
-            <option>published</option><option>draft</option><option>inactive</option>
-          </select>
-          <label>Entrance fee (number, optional)</label>
-          <input style={box} type="number" min="0" value={form.entranceFee} onChange={set("entranceFee")} />
-          <label>Estimated travel cost (number, optional)</label>
-          <input style={box} type="number" min="0" value={form.estimatedTravelCost} onChange={set("estimatedTravelCost")} />
-          <label>Latitude and longitude (optional, fill both)</label>
-          <input style={box} type="number" step="any" placeholder="Latitude" value={form.latitude} onChange={set("latitude")} />
-          <input style={box} type="number" step="any" placeholder="Longitude" value={form.longitude} onChange={set("longitude")} />
-          <label>Pictures: one web address per line (like /images/libhu.jpg or https://...)</label>
-          <textarea style={box} rows={3} value={form.gallery} onChange={set("gallery")} />
-          <label>Highlights (one per line)</label>
-          <textarea style={box} rows={3} value={form.highlights} onChange={set("highlights")} />
-          <label>Facilities (one per line)</label>
-          <textarea style={box} rows={3} value={form.facilities} onChange={set("facilities")} />
-          <label>Travel tips (one per line)</label>
-          <textarea style={box} rows={3} value={form.travelTips} onChange={set("travelTips")} />
-          <label>Nearby attractions (one per line)</label>
-          <textarea style={box} rows={3} value={form.nearbyAttractions} onChange={set("nearbyAttractions")} />
-          <button type="submit">Save</button>{" "}
-          <button type="button" onClick={() => { setForm(null); setEditingId(null); }}>Cancel</button>
-        </form>
-        {message && <p>{message}</p>}
+      <div className="adm" data-theme={theme}>
+        <header className="adm-top">
+          <div className="adm-brand"><div className="adm-logo">🏝️</div>Maasin Admin</div>
+          <div className="adm-top-actions">{themeBtn}</div>
+        </header>
+        <main className="adm-main">
+          <form onSubmit={handleSave}>
+            <div className="adm-form-head">
+              <div>
+                <h2 className="adm-title">{editingId ? "Edit spot" : "Add a new spot"}</h2>
+                <p className="adm-sub" style={{ margin: 0 }}>Fields marked * are required.</p>
+              </div>
+              <button type="button" className="adm-btn"
+                onClick={() => { setForm(null); setEditingId(null); }}>← Back</button>
+            </div>
+
+            <section className="adm-card adm-section">
+              <h3>Basics</h3>
+              <label className="adm-label">Name *</label>
+              <input className="adm-input" required value={form.name} onChange={set("name")} />
+              <label className="adm-label">Slug * <span className="adm-hint">(made from the name; lowercase letters, numbers, hyphens)</span></label>
+              <input className="adm-input" required pattern="[a-z0-9]+(-[a-z0-9]+)*"
+                value={form.slug} onChange={set("slug")} />
+              <label className="adm-label">Description * <span className="adm-hint">(at least 10 characters)</span></label>
+              <textarea className="adm-textarea" required minLength={10} rows={4}
+                value={form.description} onChange={set("description")} />
+              <div className="adm-grid">
+                <div>
+                  <label className="adm-label">Category *</label>
+                  <select className="adm-select" value={form.category} onChange={set("category")}>
+                    {CATEGORIES.map((c) => <option key={c}>{c}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="adm-label">Status <span className="adm-hint">(the public site shows only "published")</span></label>
+                  <select className="adm-select" value={form.status} onChange={set("status")}>
+                    <option>published</option><option>draft</option><option>inactive</option>
+                  </select>
+                </div>
+              </div>
+              <label className="adm-label">Address *</label>
+              <input className="adm-input" required value={form.address} onChange={set("address")} />
+            </section>
+
+            <section className="adm-card adm-section">
+              <h3>Costs and location</h3>
+              <div className="adm-grid">
+                <div>
+                  <label className="adm-label">Entrance fee <span className="adm-hint">(optional)</span></label>
+                  <input className="adm-input" type="number" min="0" value={form.entranceFee} onChange={set("entranceFee")} />
+                </div>
+                <div>
+                  <label className="adm-label">Estimated travel cost <span className="adm-hint">(optional)</span></label>
+                  <input className="adm-input" type="number" min="0" value={form.estimatedTravelCost} onChange={set("estimatedTravelCost")} />
+                </div>
+                <div>
+                  <label className="adm-label">Latitude <span className="adm-hint">(fill both or neither)</span></label>
+                  <input className="adm-input" type="number" step="any" value={form.latitude} onChange={set("latitude")} />
+                </div>
+                <div>
+                  <label className="adm-label">Longitude</label>
+                  <input className="adm-input" type="number" step="any" value={form.longitude} onChange={set("longitude")} />
+                </div>
+              </div>
+            </section>
+
+            <section className="adm-card adm-section">
+              <h3>Pictures</h3>
+              {firstPic && <img className="adm-preview" src={firstPic} alt="Preview of the first picture" />}
+              <label className="adm-label">Picture addresses <span className="adm-hint">(one per line, like /images/libhu.jpg or https://...)</span></label>
+              <textarea className="adm-textarea" rows={3} value={form.gallery} onChange={set("gallery")} />
+            </section>
+
+            <section className="adm-card adm-section">
+              <h3>Details <span className="adm-hint">(one item per line)</span></h3>
+              <label className="adm-label">Highlights</label>
+              <textarea className="adm-textarea" rows={3} value={form.highlights} onChange={set("highlights")} />
+              <label className="adm-label">Facilities</label>
+              <textarea className="adm-textarea" rows={3} value={form.facilities} onChange={set("facilities")} />
+              <label className="adm-label">Travel tips</label>
+              <textarea className="adm-textarea" rows={3} value={form.travelTips} onChange={set("travelTips")} />
+              <label className="adm-label">Nearby attractions</label>
+              <textarea className="adm-textarea" rows={3} value={form.nearbyAttractions} onChange={set("nearbyAttractions")} />
+            </section>
+
+            <div className="adm-form-foot">
+              <button type="button" className="adm-btn"
+                onClick={() => { setForm(null); setEditingId(null); }}>Cancel</button>
+              <button type="submit" className="adm-btn adm-btn-primary" disabled={saving}>
+                {saving ? "Saving..." : "Save spot"}
+              </button>
+            </div>
+          </form>
+        </main>
+        {toastEl}
       </div>
     );
   }
 
+  /* ---------- Spots list ---------- */
   return (
-    <div style={wrap}>
-      <h2>Manage tourist spots</h2>
-      <button onClick={() => { setForm({ ...EMPTY }); setEditingId(null); setMessage(""); }}>+ Add spot</button>{" "}
-      <button onClick={() => logout("")}>Log out</button>
-      {message && <p>{message}</p>}
-      <table style={{ width: "100%", marginTop: 16, borderCollapse: "collapse" }}>
-        <thead>
-          <tr><th align="left">Name</th><th align="left">Category</th><th align="left">Status</th><th /></tr>
-        </thead>
-        <tbody>
-          {spots.map((s) => (
-            <tr key={s._id} style={{ borderTop: "1px solid #ccc" }}>
-              <td>{s.name}</td><td>{s.category}</td><td>{s.status}</td>
-              <td align="right">
-                <button onClick={() => { setForm(spotToForm(s)); setEditingId(s._id); setMessage(""); }}>Edit</button>{" "}
-                <button onClick={() => handleDelete(s)}>Delete</button>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+    <div className="adm" data-theme={theme}>
+      <header className="adm-top">
+        <div className="adm-brand"><div className="adm-logo">🏝️</div>Maasin Admin</div>
+        <div className="adm-top-actions">
+          {themeBtn}
+          <button type="button" className="adm-btn" onClick={() => logout("")}>Log out</button>
+        </div>
+      </header>
+
+      <main className="adm-main">
+        <h1 className="adm-title">Tourist spots</h1>
+        <p className="adm-sub">Add, edit or delete the places shown on the site.</p>
+
+        <div className="adm-stats">
+          <div className="adm-card adm-stat"><b>{stats.total}</b><span>Total</span></div>
+          <div className="adm-card adm-stat"><b>{stats.published}</b><span>Published</span></div>
+          <div className="adm-card adm-stat"><b>{stats.draft}</b><span>Drafts</span></div>
+        </div>
+
+        <div className="adm-card">
+          <div className="adm-toolbar">
+            <input className="adm-input" placeholder="Search by name or address..."
+              value={search} onChange={(e) => setSearch(e.target.value)} />
+            <select className="adm-select" value={filterCat} onChange={(e) => setFilterCat(e.target.value)}>
+              <option>All</option>
+              {CATEGORIES.map((c) => <option key={c}>{c}</option>)}
+            </select>
+            <button type="button" className="adm-btn adm-btn-primary"
+              onClick={() => { setForm({ ...EMPTY }); setEditingId(null); }}>+ Add spot</button>
+          </div>
+
+          {loading ? (
+            <div className="adm-empty">Loading spots... the server may take up to a minute to wake up.</div>
+          ) : visible.length === 0 ? (
+            <div className="adm-empty">
+              {spots.length === 0 ? "No spots yet. Click \"+ Add spot\" to create the first one." : "No spots match your search."}
+            </div>
+          ) : (
+            <div className="adm-table-wrap">
+              <table className="adm-table">
+                <thead>
+                  <tr><th>Spot</th><th className="adm-col-cat">Category</th><th>Status</th><th /></tr>
+                </thead>
+                <tbody>
+                  {visible.map((s) => {
+                    const pic = Array.isArray(s.gallery) ? s.gallery[0] : null;
+                    return (
+                      <tr key={s._id}>
+                        <td>
+                          <div className="adm-spot">
+                            {pic ? <img className="adm-thumb" src={pic} alt="" /> : <div className="adm-thumb">🏝️</div>}
+                            <div>
+                              <div className="adm-spot-name">{s.name}</div>
+                              <div className="adm-spot-addr">{s.address}</div>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="adm-col-cat">{s.category}</td>
+                        <td><span className={`adm-badge adm-badge-${s.status}`}>{s.status}</span></td>
+                        <td>
+                          <div className="adm-actions">
+                            <button type="button" className="adm-btn adm-btn-sm"
+                              onClick={() => { setForm(spotToForm(s)); setEditingId(s._id); }}>Edit</button>
+                            <button type="button" className="adm-btn adm-btn-sm adm-btn-danger"
+                              onClick={() => setToDelete(s)}>Delete</button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      </main>
+
+      {toDelete && (
+        <div className="adm-overlay" onClick={() => setToDelete(null)}>
+          <div className="adm-card adm-modal" onClick={(e) => e.stopPropagation()}>
+            <h3>Delete this spot?</h3>
+            <p>"{toDelete.name}" will be removed for good. This cannot be undone.</p>
+            <div className="adm-modal-actions">
+              <button type="button" className="adm-btn" onClick={() => setToDelete(null)}>Cancel</button>
+              <button type="button" className="adm-btn adm-btn-primary"
+                style={{ background: "var(--danger)", borderColor: "var(--danger)", color: "#fff" }}
+                onClick={confirmDelete}>Yes, delete</button>
+            </div>
+          </div>
+        </div>
+      )}
+      {toastEl}
     </div>
   );
 }
